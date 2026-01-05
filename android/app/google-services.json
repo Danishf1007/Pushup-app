@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "992265233794",
+    "project_id": "mobileitt632",
+    "storage_bucket": "mobileitt632.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:992265233794:android:2a2fefed95f62dd83a5b9b",
+        "android_client_info": {
+          "package_name": "com.pushup.pushup_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-i-WUjt9xy7c7x-1Eow-aCHIn862i820"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
