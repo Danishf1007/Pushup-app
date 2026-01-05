@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../plans/domain/entities/entities.dart';
+import '../../../plans/domain/entities/training_plan_entity.dart';
 import '../../../plans/presentation/providers/plan_provider.dart';
 import '../providers/coach_provider.dart';
 
@@ -392,21 +391,26 @@ class _AssignPlanScreenState extends ConsumerState<AssignPlanScreen> {
       final endDate =
           _endDate ?? _startDate.add(Duration(days: plan.durationDays));
 
-      // Create assignments for all selected athletes
-      for (final athleteId in _selectedAthleteIds) {
-        final assignment = PlanAssignmentEntity(
-          id: '', // Will be set by Firestore
-          planId: widget.planId,
-          athleteId: athleteId,
-          coachId: currentUser.id,
-          assignedAt: DateTime.now(),
-          startDate: _startDate,
-          endDate: endDate,
-          status: AssignmentStatus.active,
-          completionRate: 0,
-        );
+      // Get athletes list to get names
+      final athletesAsync = ref.read(athletesStreamProvider(currentUser.id));
+      final athletes = athletesAsync.valueOrNull ?? [];
+      final athleteMap = {for (final a in athletes) a.id: a};
 
-        await ref.read(planRepositoryProvider).assignPlan(assignment);
+      // Create assignments for all selected athletes using the notifier
+      for (final athleteId in _selectedAthleteIds) {
+        final athlete = athleteMap[athleteId];
+        await ref
+            .read(assignmentProvider.notifier)
+            .assignPlan(
+              planId: widget.planId,
+              athleteId: athleteId,
+              coachId: currentUser.id,
+              startDate: _startDate,
+              endDate: endDate,
+              planName: plan.name,
+              athleteName: athlete?.displayName,
+              coachName: currentUser.displayName,
+            );
       }
 
       if (mounted) {

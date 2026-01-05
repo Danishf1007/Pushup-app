@@ -32,6 +32,7 @@ abstract class RouteNames {
 
   // ============== Shared Routes ==============
   static const String notifications = 'notifications';
+  static const String notificationSettings = 'notification-settings';
   static const String settings = 'settings';
   static const String helpSupport = 'help-support';
   static const String about = 'about';
@@ -73,6 +74,7 @@ abstract class RoutePaths {
 
   // ============== Shared Paths ==============
   static const String notifications = '/notifications';
+  static const String notificationSettings = '/notification-settings';
   static const String settings = '/settings';
   static const String helpSupport = '/help-support';
   static const String about = '/about';

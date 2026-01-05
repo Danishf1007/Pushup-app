@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../notifications/domain/entities/notification_entity.dart';
+import '../../../notifications/domain/repositories/notification_repository.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/plan_repository_impl.dart';
 import '../../domain/entities/entities.dart';
@@ -229,9 +232,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
 /// Notifier for managing plan assignments.
 class AssignmentNotifier extends StateNotifier<AssignmentState> {
   /// Creates a new [AssignmentNotifier].
-  AssignmentNotifier(this._repository) : super(const AssignmentInitial());
+  AssignmentNotifier(this._repository, this._notificationRepository)
+    : super(const AssignmentInitial());
 
   final PlanRepository _repository;
+  final NotificationRepository _notificationRepository;
 
   /// Assigns a plan to an athlete.
   Future<bool> assignPlan({
@@ -242,6 +247,7 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
     DateTime? endDate,
     String? planName,
     String? athleteName,
+    String? coachName,
   }) async {
     state = const AssignmentLoading();
     try {
@@ -258,6 +264,19 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
       );
 
       final created = await _repository.assignPlan(assignment);
+
+      // Send notification to the athlete about the new plan
+      await _notificationRepository.sendNotification(
+        senderId: coachId,
+        receiverId: athleteId,
+        type: NotificationType.planAssigned,
+        title: 'New Training Plan Assigned! 📋',
+        message:
+            '${coachName ?? "Your coach"} has assigned you a new plan: ${planName ?? "Training Plan"}. Start date: ${_formatDate(startDate)}',
+        senderName: coachName,
+        data: {'planId': planId, 'assignmentId': created.id},
+      );
+
       state = AssignmentOperationSuccess(
         message: 'Plan assigned successfully',
         assignment: created,
@@ -267,6 +286,24 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
       state = AssignmentError(_mapError(e));
       return false;
     }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   /// Cancels an assignment.
@@ -330,5 +367,6 @@ class AssignmentNotifier extends StateNotifier<AssignmentState> {
 final assignmentProvider =
     StateNotifierProvider<AssignmentNotifier, AssignmentState>((ref) {
       final repository = ref.watch(planRepositoryProvider);
-      return AssignmentNotifier(repository);
+      final notificationRepository = ref.watch(notificationRepositoryProvider);
+      return AssignmentNotifier(repository, notificationRepository);
     });

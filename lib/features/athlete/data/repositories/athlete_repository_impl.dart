@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../../../../core/utils/logger.dart';
 import '../../../plans/data/models/models.dart';
@@ -180,11 +181,70 @@ class AthleteRepositoryImpl implements AthleteRepository {
 
   @override
   Stream<AthleteStatsEntity> watchAthleteStats(String athleteId) {
-    return _statsRef.doc(athleteId).snapshots().map((doc) {
-      if (!doc.exists) {
-        return AthleteStatsEntity(athleteId: athleteId);
+    // Combine stats document stream with activity logs to compute weekly/monthly stats dynamically
+    final statsStream = _statsRef.doc(athleteId).snapshots();
+    final activityLogsStream = _activityLogsRef
+        .where('athleteId', isEqualTo: athleteId)
+        .snapshots();
+
+    return Rx.combineLatest2<
+      DocumentSnapshot<Map<String, dynamic>>,
+      QuerySnapshot<Map<String, dynamic>>,
+      AthleteStatsEntity
+    >(statsStream, activityLogsStream, (statsDoc, logsSnapshot) {
+      // Get base stats from document
+      AthleteStatsEntity baseStats;
+      if (!statsDoc.exists) {
+        baseStats = AthleteStatsEntity(athleteId: athleteId);
+      } else {
+        baseStats = AthleteStatsModel.fromFirestore(statsDoc).toEntity();
       }
-      return AthleteStatsModel.fromFirestore(doc).toEntity();
+
+      // Compute weekly and monthly stats from activity logs
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final currentWeekStart = today.subtract(
+        Duration(days: today.weekday - 1),
+      );
+      final currentMonthStart = DateTime(now.year, now.month, 1);
+
+      int weeklyWorkouts = 0;
+      int weeklyDuration = 0;
+      int monthlyWorkouts = 0;
+      int monthlyDuration = 0;
+
+      for (final doc in logsSnapshot.docs) {
+        final data = doc.data();
+        final completedAt = (data['completedAt'] as Timestamp?)?.toDate();
+        if (completedAt == null) continue;
+
+        final logDate = DateTime(
+          completedAt.year,
+          completedAt.month,
+          completedAt.day,
+        );
+        final logDuration = data['actualDuration'] as int? ?? 0;
+
+        // Count weekly stats
+        if (!logDate.isBefore(currentWeekStart)) {
+          weeklyWorkouts++;
+          weeklyDuration += logDuration;
+        }
+
+        // Count monthly stats
+        if (!logDate.isBefore(currentMonthStart)) {
+          monthlyWorkouts++;
+          monthlyDuration += logDuration;
+        }
+      }
+
+      // Return stats with computed weekly/monthly values
+      return baseStats.copyWith(
+        weeklyWorkouts: weeklyWorkouts,
+        weeklyDuration: weeklyDuration,
+        monthlyWorkouts: monthlyWorkouts,
+        monthlyDuration: monthlyDuration,
+      );
     });
   }
 
@@ -205,6 +265,12 @@ class AthleteRepositoryImpl implements AthleteRepository {
         DateTime? lastActivityDate;
         int totalWorkouts = 0;
         int totalDuration = 0;
+        int weeklyWorkouts = 0;
+        int weeklyDuration = 0;
+        int monthlyWorkouts = 0;
+        int monthlyDuration = 0;
+        DateTime? weekStartDate;
+        DateTime? monthStartDate;
 
         if (snapshot.exists) {
           final data = snapshot.data()!;
@@ -213,11 +279,44 @@ class AthleteRepositoryImpl implements AthleteRepository {
           lastActivityDate = (data['lastActivityDate'] as Timestamp?)?.toDate();
           totalWorkouts = data['totalWorkouts'] as int? ?? 0;
           totalDuration = data['totalDuration'] as int? ?? 0;
+          weeklyWorkouts = data['weeklyWorkouts'] as int? ?? 0;
+          weeklyDuration = data['weeklyDuration'] as int? ?? 0;
+          monthlyWorkouts = data['monthlyWorkouts'] as int? ?? 0;
+          monthlyDuration = data['monthlyDuration'] as int? ?? 0;
+          weekStartDate = (data['weekStartDate'] as Timestamp?)?.toDate();
+          monthStartDate = (data['monthStartDate'] as Timestamp?)?.toDate();
+        }
+
+        // Calculate the start of current week (Monday)
+        final today = DateTime(now.year, now.month, now.day);
+        final currentWeekStart = today.subtract(
+          Duration(days: today.weekday - 1),
+        );
+        final currentMonthStart = DateTime(now.year, now.month, 1);
+
+        // Reset weekly stats if we're in a new week
+        if (weekStartDate == null || currentWeekStart.isAfter(weekStartDate)) {
+          weeklyWorkouts = 0;
+          weeklyDuration = 0;
+          weekStartDate = currentWeekStart;
+        }
+
+        // Reset monthly stats if we're in a new month
+        if (monthStartDate == null ||
+            currentMonthStart.isAfter(monthStartDate)) {
+          monthlyWorkouts = 0;
+          monthlyDuration = 0;
+          monthStartDate = currentMonthStart;
         }
 
         // Calculate new streak
         if (lastActivityDate != null) {
-          final daysDiff = now.difference(lastActivityDate).inDays;
+          final lastActivityDay = DateTime(
+            lastActivityDate.year,
+            lastActivityDate.month,
+            lastActivityDate.day,
+          );
+          final daysDiff = today.difference(lastActivityDay).inDays;
           if (daysDiff == 0) {
             // Same day, streak unchanged
           } else if (daysDiff == 1) {
@@ -243,6 +342,12 @@ class AthleteRepositoryImpl implements AthleteRepository {
           'lastActivityDate': Timestamp.fromDate(now),
           'totalWorkouts': totalWorkouts + 1,
           'totalDuration': totalDuration + duration,
+          'weeklyWorkouts': weeklyWorkouts + 1,
+          'weeklyDuration': weeklyDuration + duration,
+          'monthlyWorkouts': monthlyWorkouts + 1,
+          'monthlyDuration': monthlyDuration + duration,
+          'weekStartDate': Timestamp.fromDate(weekStartDate!),
+          'monthStartDate': Timestamp.fromDate(monthStartDate!),
         }, SetOptions(merge: true));
       });
 

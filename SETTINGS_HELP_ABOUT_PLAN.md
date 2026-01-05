@@ -21,11 +21,11 @@ Simple static pages for app settings, help & support, and about information.
 | Clear Cache | Remove local cache | ✅ Implemented |
 
 ### Future Enhancements
-- [ ] Persist settings to SharedPreferences
+- [x] Persist settings to SharedPreferences
 - [ ] Implement Dark Mode theme
 - [ ] Add workout reminder scheduling (time picker)
 - [ ] Export data to CSV/PDF
-- [ ] Notification channel settings
+- [x] Notification channel settings (NotificationSettingsScreen)
 - [ ] Language selection
 
 ---

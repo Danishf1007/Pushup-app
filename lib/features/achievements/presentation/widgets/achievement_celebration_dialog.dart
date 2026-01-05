@@ -36,7 +36,10 @@ class AchievementCelebrationDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       child:
           Container(
-                constraints: const BoxConstraints(maxWidth: 340),
+                constraints: BoxConstraints(
+                  maxWidth: 340,
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.cardLight,
                   borderRadius: BorderRadius.circular(AppSpacing.lg),
@@ -89,16 +92,18 @@ class AchievementCelebrationDialog extends StatelessWidget {
                       ),
                     ),
 
-                    // Achievement list
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      child: Column(
-                        children: [
-                          ...achievements.map(
-                            (achievement) =>
-                                _AchievementItem(achievement: achievement),
-                          ),
-                        ],
+                    // Achievement list (scrollable)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Column(
+                          children: [
+                            ...achievements.map(
+                              (achievement) =>
+                                  _AchievementItem(achievement: achievement),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 

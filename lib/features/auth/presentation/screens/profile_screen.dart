@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -529,11 +531,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             trailing: const Icon(Icons.chevron_right),
             contentPadding: EdgeInsets.zero,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notification settings coming soon!'),
-                ),
-              );
+              context.push(RoutePaths.notificationSettings);
             },
           ),
         ],

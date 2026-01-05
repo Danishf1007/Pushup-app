@@ -160,8 +160,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return true;
     } catch (e) {
-      // Don't change auth state on password change failure
-      // The user is still authenticated, just show error via return value
+      state = AuthError(e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }

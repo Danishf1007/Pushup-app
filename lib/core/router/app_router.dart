@@ -19,6 +19,7 @@ import '../../features/notifications/presentation/screens/screens.dart';
 import '../../features/messaging/presentation/screens/screens.dart';
 import '../../features/plans/presentation/screens/screens.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/notification_settings_screen.dart';
 import '../../features/settings/presentation/screens/help_support_screen.dart';
 import '../../features/settings/presentation/screens/about_screen.dart';
 import '../constants/app_constants.dart';
@@ -248,6 +249,11 @@ final List<RouteBase> _routes = [
     path: RoutePaths.settings,
     name: RouteNames.settings,
     builder: (context, state) => const SettingsScreen(),
+  ),
+  GoRoute(
+    path: RoutePaths.notificationSettings,
+    name: RouteNames.notificationSettings,
+    builder: (context, state) => const NotificationSettingsScreen(),
   ),
   GoRoute(
     path: RoutePaths.helpSupport,

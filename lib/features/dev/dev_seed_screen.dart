@@ -17,6 +17,7 @@ class DevSeedScreen extends StatefulWidget {
 class _DevSeedScreenState extends State<DevSeedScreen> {
   bool _isSeeding = false;
   bool _isClearing = false;
+  bool _isRecalculating = false;
   String? _resultMessage;
   bool? _resultSuccess;
 
@@ -83,6 +84,22 @@ class _DevSeedScreenState extends State<DevSeedScreen> {
     }
   }
 
+  Future<void> _recalculateStats() async {
+    setState(() {
+      _isRecalculating = true;
+      _resultMessage = null;
+    });
+
+    final seeder = DatabaseSeeder();
+    final result = await seeder.recalculateAllAthleteStats();
+
+    setState(() {
+      _isRecalculating = false;
+      _resultMessage = result.toString();
+      _resultSuccess = result.success;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -132,6 +149,37 @@ class _DevSeedScreenState extends State<DevSeedScreen> {
               text: 'Seed Database',
               onPressed: _isSeeding ? null : _seedDatabase,
               isLoading: _isSeeding,
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+            const Divider(),
+            const SizedBox(height: AppSpacing.xl),
+
+            // Recalculate Stats
+            Text('Recalculate Stats', style: AppTextStyles.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Recalculate weekly/monthly workout stats for all athletes '
+              'based on their activity logs. Use this if stats are showing 0.',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton(
+              onPressed: _isRecalculating ? null : _recalculateStats,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.info,
+                side: const BorderSide(color: AppColors.info),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              ),
+              child: _isRecalculating
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Recalculate All Stats'),
             ),
 
             const SizedBox(height: AppSpacing.xl),

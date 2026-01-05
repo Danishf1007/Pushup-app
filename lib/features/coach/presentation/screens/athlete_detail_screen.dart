@@ -456,143 +456,32 @@ class _AthleteDetailContent extends ConsumerWidget {
   }
 
   Widget _buildActivitySection() {
-    return Consumer(
-      builder: (context, ref, child) {
-        debugPrint('\n📱 Activity Section - Athlete: ${athlete.displayName}');
-        debugPrint('   ID: ${athlete.id}');
-
-        final activityLogsAsync = ref.watch(
-          activityLogsStreamProvider(athlete.id),
-        );
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Recent Activity', style: AppTextStyles.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            activityLogsAsync.when(
-              data: (logs) {
-                debugPrint('   ✅ Got ${logs.length} activity logs');
-
-                if (logs.isEmpty) {
-                  return BaseCard(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.fitness_center_outlined,
-                          size: 48,
-                          color: AppColors.textSecondary.withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'No activities logged yet',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Show latest 5 activities
-                final recentLogs = logs.take(5).toList();
-
-                return Column(
-                  children: recentLogs.map((log) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: BaseCard(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.check_circle,
-                                color: AppColors.primary,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    log.activityName,
-                                    style: AppTextStyles.titleSmall,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${log.actualDuration} min • Effort ${log.effortLevel}/10',
-                                    style: AppTextStyles.bodySmall.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  _formatDate(log.completedAt),
-                                  style: AppTextStyles.labelSmall.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                if (log.notes != null) ...[
-                                  const SizedBox(height: 4),
-                                  Icon(
-                                    Icons.note,
-                                    size: 16,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                );
-              },
-              loading: () => const Center(child: LoadingIndicator()),
-              error: (e, st) => BaseCard(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Text(
-                  'Error loading activities: $e',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.error,
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Recent Activity', style: AppTextStyles.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        BaseCard(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            children: [
+              Icon(
+                Icons.history,
+                size: 48,
+                color: AppColors.textSecondary.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Activity history coming soon',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ],
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final activityDate = DateTime(date.year, date.month, date.day);
-    final diff = today.difference(activityDate).inDays;
-
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
-    if (diff < 7) return '$diff days ago';
-
-    return '${date.month}/${date.day}/${date.year}';
   }
 
   Future<void> _startConversation(BuildContext context, WidgetRef ref) async {
@@ -686,6 +575,7 @@ class _AthleteDetailContent extends ConsumerWidget {
                   endDate: now.add(Duration(days: selectedPlan.durationDays)),
                   planName: selectedPlan.name,
                   athleteName: athlete.displayName,
+                  coachName: authState.user.displayName,
                 );
 
             if (context.mounted) {

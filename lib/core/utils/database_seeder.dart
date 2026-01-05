@@ -91,6 +91,185 @@ class DatabaseSeeder {
     }
   }
 
+  /// Recalculates stats for ALL athletes in the database.
+  /// This is useful when stats are out of sync with activity logs.
+  Future<SeedResult> recalculateAllAthleteStats() async {
+    try {
+      debugPrint('\n📊 Recalculating stats for all athletes...\n');
+
+      // Get all athletes from the database
+      final athletesSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'athlete')
+          .get();
+
+      if (athletesSnapshot.docs.isEmpty) {
+        return SeedResult(
+          success: false,
+          message: 'No athletes found in the database.',
+        );
+      }
+
+      int updatedCount = 0;
+
+      for (final athleteDoc in athletesSnapshot.docs) {
+        final athleteId = athleteDoc.id;
+        final athleteName = athleteDoc.data()['displayName'] ?? 'Unknown';
+
+        // Get all activity logs for this athlete
+        final logsSnapshot = await _firestore
+            .collection('activity_logs')
+            .where('athleteId', isEqualTo: athleteId)
+            .get();
+
+        // Calculate week and month boundaries
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+        final currentWeekStart = todayDate.subtract(
+          Duration(days: todayDate.weekday - 1),
+        );
+        final currentMonthStart = DateTime(today.year, today.month, 1);
+
+        if (logsSnapshot.docs.isEmpty) {
+          // No activity logs, set default stats
+          await _firestore.collection('athlete_stats').doc(athleteId).set({
+            'athleteId': athleteId,
+            'currentStreak': 0,
+            'longestStreak': 0,
+            'lastActivityDate': null,
+            'totalWorkouts': 0,
+            'totalDuration': 0,
+            'weeklyWorkouts': 0,
+            'weeklyDuration': 0,
+            'monthlyWorkouts': 0,
+            'monthlyDuration': 0,
+            'weekStartDate': Timestamp.fromDate(currentWeekStart),
+            'monthStartDate': Timestamp.fromDate(currentMonthStart),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          debugPrint('   👤 $athleteName: No activity logs, reset to 0');
+          updatedCount++;
+          continue;
+        }
+
+        final logs = logsSnapshot.docs.map((doc) => doc.data()).toList();
+
+        // Extract unique dates and calculate totals
+        final logDates = <DateTime>[];
+        int totalDuration = 0;
+        int weeklyWorkouts = 0;
+        int weeklyDuration = 0;
+        int monthlyWorkouts = 0;
+        int monthlyDuration = 0;
+
+        for (final log in logs) {
+          final completedAt = (log['completedAt'] as Timestamp).toDate();
+          final dateOnly = DateTime(
+            completedAt.year,
+            completedAt.month,
+            completedAt.day,
+          );
+          logDates.add(dateOnly);
+          final logDuration = (log['actualDuration'] as int? ?? 0);
+          totalDuration += logDuration;
+
+          // Count weekly stats
+          if (!dateOnly.isBefore(currentWeekStart)) {
+            weeklyWorkouts++;
+            weeklyDuration += logDuration;
+          }
+
+          // Count monthly stats
+          if (!dateOnly.isBefore(currentMonthStart)) {
+            monthlyWorkouts++;
+            monthlyDuration += logDuration;
+          }
+        }
+
+        final uniqueDates = logDates.toSet().toList()
+          ..sort((a, b) => b.compareTo(a));
+        final totalWorkouts = logs.length;
+
+        // Calculate current streak
+        int currentStreak = 0;
+
+        if (uniqueDates.isNotEmpty) {
+          final mostRecent = uniqueDates.first;
+          final daysSinceLastActivity = todayDate.difference(mostRecent).inDays;
+
+          if (daysSinceLastActivity <= 1) {
+            currentStreak = 1;
+            DateTime lastDate = mostRecent;
+
+            for (var i = 1; i < uniqueDates.length; i++) {
+              final diff = lastDate.difference(uniqueDates[i]).inDays;
+              if (diff == 1) {
+                currentStreak++;
+                lastDate = uniqueDates[i];
+              } else {
+                break;
+              }
+            }
+          }
+        }
+
+        // Calculate longest streak
+        int longestStreak = 0;
+        int tempStreak = 0;
+        DateTime? lastDate;
+
+        for (final date in uniqueDates.reversed) {
+          if (lastDate == null) {
+            tempStreak = 1;
+          } else {
+            final diff = date.difference(lastDate).inDays;
+            if (diff == 1) {
+              tempStreak++;
+            } else {
+              if (tempStreak > longestStreak) longestStreak = tempStreak;
+              tempStreak = 1;
+            }
+          }
+          lastDate = date;
+        }
+        if (tempStreak > longestStreak) longestStreak = tempStreak;
+
+        debugPrint(
+          '   👤 $athleteName: $totalWorkouts workouts, $currentStreak-day streak, $weeklyWorkouts this week',
+        );
+
+        // Save stats to Firestore
+        await _firestore.collection('athlete_stats').doc(athleteId).set({
+          'athleteId': athleteId,
+          'currentStreak': currentStreak,
+          'longestStreak': longestStreak,
+          'lastActivityDate': Timestamp.fromDate(uniqueDates.first),
+          'totalWorkouts': totalWorkouts,
+          'totalDuration': totalDuration,
+          'weeklyWorkouts': weeklyWorkouts,
+          'weeklyDuration': weeklyDuration,
+          'monthlyWorkouts': monthlyWorkouts,
+          'monthlyDuration': monthlyDuration,
+          'weekStartDate': Timestamp.fromDate(currentWeekStart),
+          'monthStartDate': Timestamp.fromDate(currentMonthStart),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        updatedCount++;
+      }
+
+      return SeedResult(
+        success: true,
+        athleteCount: updatedCount,
+        message: 'Stats recalculated for $updatedCount athletes.',
+      );
+    } catch (e) {
+      return SeedResult(
+        success: false,
+        message: 'Failed to recalculate stats: ${e.toString()}',
+      );
+    }
+  }
+
   /// Seeds 6 coach users (tripled from original 2).
   Future<void> _seedCoaches() async {
     print('👨‍🏫 Seeding coaches...');
@@ -1042,6 +1221,19 @@ class DatabaseSeeder {
       final logDates = <DateTime>[];
       int totalDuration = 0;
 
+      // Calculate week and month boundaries
+      final today = DateTime.now();
+      final todayDate = DateTime(today.year, today.month, today.day);
+      final currentWeekStart = todayDate.subtract(
+        Duration(days: todayDate.weekday - 1),
+      );
+      final currentMonthStart = DateTime(today.year, today.month, 1);
+
+      int weeklyWorkouts = 0;
+      int weeklyDuration = 0;
+      int monthlyWorkouts = 0;
+      int monthlyDuration = 0;
+
       for (final log in logs) {
         final completedAt = (log['completedAt'] as Timestamp).toDate();
         final dateOnly = DateTime(
@@ -1050,7 +1242,20 @@ class DatabaseSeeder {
           completedAt.day,
         );
         logDates.add(dateOnly);
-        totalDuration += (log['actualDuration'] as int? ?? 0);
+        final logDuration = (log['actualDuration'] as int? ?? 0);
+        totalDuration += logDuration;
+
+        // Count weekly stats
+        if (!dateOnly.isBefore(currentWeekStart)) {
+          weeklyWorkouts++;
+          weeklyDuration += logDuration;
+        }
+
+        // Count monthly stats
+        if (!dateOnly.isBefore(currentMonthStart)) {
+          monthlyWorkouts++;
+          monthlyDuration += logDuration;
+        }
       }
 
       final uniqueDates = logDates.toSet().toList()
@@ -1058,8 +1263,6 @@ class DatabaseSeeder {
       final totalWorkouts = logs.length;
 
       // Calculate current streak
-      final today = DateTime.now();
-      final todayDate = DateTime(today.year, today.month, today.day);
       int currentStreak = 0;
 
       if (uniqueDates.isNotEmpty) {
@@ -1104,7 +1307,7 @@ class DatabaseSeeder {
       if (tempStreak > longestStreak) longestStreak = tempStreak;
 
       print(
-        '   👤 $athleteName: $totalWorkouts workouts, $currentStreak-day streak',
+        '   👤 $athleteName: $totalWorkouts workouts, $currentStreak-day streak, $weeklyWorkouts this week',
       );
 
       // Save stats to Firestore
@@ -1115,6 +1318,12 @@ class DatabaseSeeder {
         'lastActivityDate': Timestamp.fromDate(uniqueDates.first),
         'totalWorkouts': totalWorkouts,
         'totalDuration': totalDuration,
+        'weeklyWorkouts': weeklyWorkouts,
+        'weeklyDuration': weeklyDuration,
+        'monthlyWorkouts': monthlyWorkouts,
+        'monthlyDuration': monthlyDuration,
+        'weekStartDate': Timestamp.fromDate(currentWeekStart),
+        'monthStartDate': Timestamp.fromDate(currentMonthStart),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
